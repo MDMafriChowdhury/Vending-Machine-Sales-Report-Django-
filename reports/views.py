@@ -7,7 +7,8 @@ import hashlib
 from .models import (
     Invoice, Order, ProductPurchase,
     StoreProduct, TblUserCredit, StoreSet, InvoiceDetails, OrderDetails,
-    UserLogin, Users, CustomerInformation, StoreMerchant
+    UserLogin, Users, CustomerInformation, StoreMerchant, TblCreditTransection,
+    TblUserStores, ProductInformation, Variant
 )
 
 # --- AUTHENTICATION VIEWS ---
@@ -54,11 +55,6 @@ def login_view(request):
                     return render(request, 'reports/login.html', {'error': 'Account is inactive.'})
 
             else:
-                # Password Mismatch
-                # DEBUGGING: If it fails again, uncomment these lines to see the mismatch
-                # error_msg = f"Mismatch! <br>Input: {password_in}<br>Salted Input: {salted_password}<br>Calc: {calculated_hash}<br>DB: {db_pass}"
-                # return render(request, 'reports/login.html', {'error': error_msg})
-                
                 return render(request, 'reports/login.html', {'error': 'Invalid username or password.'})
 
         except UserLogin.DoesNotExist:
@@ -71,53 +67,69 @@ def logout_view(request):
     return redirect('login')
 
 
-# --- DASHBOARD VIEW ---
-
-def dashboard_view(request):
-    # 1. Authentication Guard
+# --- HELPER: GET ALLOWED STORES ---
+def get_user_permissions(request):
+    """
+    Returns a tuple: (user_id, is_admin, is_merchant, is_store_keeper, allowed_store_ids, username)
+    Or None if not logged in.
+    """
     user_id = request.session.get('user_id')
     if not user_id:
-        return redirect('login')
+        return None
 
     user_type = request.session.get('user_type')
     session_store_id = request.session.get('store_id')
     username = request.session.get('username')
 
-    # 2. RBAC: Determine Allowed Stores
-    # user_type: 1=admin, 2=shop-manager/merchant, 4=store keeper
     allowed_store_ids = [] 
     is_admin = False
+    is_merchant = False
+    is_store_keeper = False
     
     if user_type == 1:
         is_admin = True
-        # Admin sees all, so we leave allowed_store_ids empty to signify "ALL"
-    elif user_type == 2: 
-        # Merchant: Fetch stores linked to this merchant ID
-        # Assuming StoreMerchant links merchant_id to store_id
+    elif user_type == 6: 
+        is_merchant = True
         allowed_store_ids = list(StoreMerchant.objects.filter(merchant_id=user_id).values_list('store_id', flat=True))
     elif user_type == 4:
-        # Store Keeper: Uses the single store assigned in UserLogin
+        is_store_keeper = True
         if session_store_id:
             allowed_store_ids = [session_store_id]
     else:
-        # Fallback for other roles (Sales man etc) - restrict to session store or none
         if session_store_id:
             allowed_store_ids = [session_store_id]
+            
+    return (user_id, is_admin, is_merchant, is_store_keeper, allowed_store_ids, username)
+
+
+# --- DASHBOARD VIEW ---
+
+def dashboard_view(request):
+    perms = get_user_permissions(request)
+    if not perms:
+        return redirect('login')
+    
+    user_id, is_admin, is_merchant, is_store_keeper, allowed_store_ids, username = perms
 
     # --- URL PARAMETERS ---
     current_tab = request.GET.get('tab', 'sales')
     
-    # Get user input for GLOBAL filters
     end_date_str = request.GET.get('end_date')
     start_date_str = request.GET.get('start_date')
     
-    # Get user input for TAB specific filters
     user_id_filter = request.GET.get('user_id_filter', '').strip()
+    
     credit_start_date_str = request.GET.get('credit_start_date') 
     credit_end_date_str = request.GET.get('credit_end_date') 
+    
     store_id_filter = request.GET.get('store_id_filter', '').strip()
     transaction_start_date_str = request.GET.get('transaction_start_date') 
     transaction_end_date_str = request.GET.get('transaction_end_date') 
+    
+    sales_store_id = request.GET.get('sales_store_id', '').strip()
+    sales_start_date_str = request.GET.get('sales_start_date')
+    sales_end_date_str = request.GET.get('sales_end_date')
+
 
     today = datetime.date.today()
     
@@ -140,50 +152,52 @@ def dashboard_view(request):
                 continue
         return None
 
-    # Parse inputs
     global_filter_start_date = parse_date_input(start_date_str)
     global_filter_end_date = parse_date_input(end_date_str)
+    
+    sales_filter_start_date = parse_date_input(sales_start_date_str)
+    sales_filter_end_date = parse_date_input(sales_end_date_str)
+
     credit_filter_start_date = parse_date_input(credit_start_date_str)
     credit_filter_end_date = parse_date_input(credit_end_date_str)
     transaction_filter_start_date = parse_date_input(transaction_start_date_str)
     transaction_filter_end_date = parse_date_input(transaction_end_date_str)
 
-    # Display Variables
     filter_start_str = "All Time"
     filter_end_str = ""
     filter_start_date_html = start_date_str
     filter_end_date_html = end_date_str
+    
+    sales_start_date_html = sales_start_date_str
+    sales_end_date_html = sales_end_date_str
+    
     credit_start_date_html = credit_start_date_str
     credit_end_date_html = credit_end_date_str
     transaction_start_date_html = transaction_start_date_str
     transaction_end_date_html = transaction_end_date_str
 
 
-    # --- RBAC FILTER APPLICATION HELPER ---
     def apply_store_permission(queryset):
         if is_admin:
             return queryset
         if not allowed_store_ids:
-            return queryset.none() # No stores assigned, show nothing
+            return queryset.none() 
         return queryset.filter(store_id__in=allowed_store_ids)
 
     # --- GLOBAL METRICS LOGIC ---
     
-    # 1. Base QuerySets (Pre-filtered by Role)
     invoice_qs = apply_store_permission(Invoice.objects.all())
     order_qs = apply_store_permission(Order.objects.all())
     store_set_qs = apply_store_permission(StoreSet.objects.all())
     store_prod_qs = apply_store_permission(StoreProduct.objects.all())
-    # Credit is special, usually global. We might hide it for non-admins.
     credit_qs = TblUserCredit.objects.all() 
 
-    # 2. Apply Date Filters to Global Metrics
     global_invoice_filter = Q()
-    global_credit_filter = Q() # Credit doesn't filter by store usually
+    global_credit_filter = Q() 
     
     if global_filter_start_date or global_filter_end_date:
-        display_start = global_filter_start_date.strftime('%Y-%m-%d') if global_filter_start_date else "Start"
-        display_end = global_filter_end_date.strftime('%Y-%m-%d') if global_filter_end_date else "Now"
+        display_start = global_filter_start_date.strftime('%d %b %Y') if global_filter_start_date else "Start"
+        display_end = global_filter_end_date.strftime('%d %b %Y') if global_filter_end_date else "Now"
 
         if global_filter_start_date and global_filter_end_date:
             filter_start_str = display_start
@@ -194,22 +208,29 @@ def dashboard_view(request):
             filter_start_str = f"Up to {display_end}"
         
         if global_filter_start_date:
-            global_invoice_filter &= Q(date__gte=global_filter_start_date.strftime('%Y-%m-%d'))
+            global_invoice_filter &= Q(date__gte=global_filter_start_date.strftime('%d %b %Y'))
             global_credit_filter &= Q(transaction_datetime__date__gte=global_filter_start_date)
 
         if global_filter_end_date:
-            global_invoice_filter &= Q(date__lte=global_filter_end_date.strftime('%Y-%m-%d'))
+            global_invoice_filter &= Q(date__lte=global_filter_end_date.strftime('%d %b %Y'))
             global_credit_filter &= Q(transaction_datetime__date__lte=global_filter_end_date)
             
-    # 3. Calculate Metrics
     total_sales = invoice_qs.filter(global_invoice_filter).aggregate(total=Sum('total_amount'))['total'] or 0.0
-    total_orders = order_qs.filter(global_invoice_filter).count() # Approximation using same date logic if applicable
+    total_orders = order_qs.filter(global_invoice_filter).count() 
     
-    # Only Admins see total credit balance usually
     total_credit_balance = 0.0
     if is_admin:
         total_credit_balance = credit_qs.filter(global_credit_filter).aggregate(total=Sum('balance'))['total'] or 0.0
-    
+    elif is_merchant or is_store_keeper:
+        relevant_customer_ids = Order.objects.filter(
+            store_id__in=allowed_store_ids
+        ).values_list('customer_id', flat=True).distinct()
+        
+        total_credit_balance = credit_qs.filter(
+            global_credit_filter,
+            user_id__in=relevant_customer_ids
+        ).aggregate(total=Sum('balance'))['total'] or 0.0
+
     active_machines = store_set_qs.filter(is_active=1).count()
     total_stock_count = store_prod_qs.aggregate(total=Sum('quantity'))['total'] or 0
 
@@ -218,60 +239,120 @@ def dashboard_view(request):
     tab_data = {}
     
     if current_tab == 'sales':
-        # Date filters
-        sales_start = global_filter_start_date or (today - datetime.timedelta(days=30))
-        sales_end = global_filter_end_date or today
+        if is_admin:
+            sales_stores = StoreSet.objects.all().values('store_id', 'store_name')
+        else:
+            sales_stores = StoreSet.objects.filter(store_id__in=allowed_store_ids).values('store_id', 'store_name')
         
-        sales_start_str = sales_start.strftime('%Y-%m-%d')
-        sales_end_str = sales_end.strftime('%Y-%m-%d')
-        
-        sales_display_start = f"From {sales_start_str}" if global_filter_start_date else "Last 30 Days"
-        sales_display_end = f"to {sales_end_str}" if global_filter_end_date else ""
+        sales_stores_list = [{'id': s['store_id'], 'name': s['store_name'] or f"ID: {s['store_id']}"} for s in sales_stores]
+        relevant_stores_map = {s['id']: s['name'] for s in sales_stores_list}
 
-        # Use the role-filtered invoice_qs
-        filtered_invoices = invoice_qs.filter(
-            date__gte=sales_start_str,
-            date__lte=sales_end_str
-        ).order_by('-date')[:100]
+        target_store_ids = []
+        selected_store_name = "All Stores"
+        
+        if sales_store_id:
+            if is_admin or sales_store_id in allowed_store_ids:
+                target_store_ids = [sales_store_id]
+                selected_store_name = relevant_stores_map.get(sales_store_id, "Unknown Store")
+        else:
+            target_store_ids = [s['id'] for s in sales_stores_list]
 
-        total_filtered_sales = invoice_qs.filter(
-            date__gte=sales_start_str, 
-            date__lte=sales_end_str
-        ).aggregate(Sum('total_amount'))['total_amount__sum'] or 0.0
+        raw_invoice_qs = Invoice.objects.filter(store_id__in=target_store_ids).values('invoice_id', 'store_id', 'date', 'total_amount')
+
+        sales_summary_by_store = {sid: {'store_id': sid, 'name': relevant_stores_map.get(sid, f"ID: {sid}"), 'amount': 0.0, 'count': 0} for sid in target_store_ids}
+        store_daily_data = {sid: {} for sid in target_store_ids} 
+        all_dates = set()
         
-        # Chart Data
-        chart_qs = invoice_qs.filter(
-            date__gte=sales_start_str,
-            date__lte=sales_end_str
-        ).values('date').annotate(daily=Sum('total_amount')).order_by('date')
+        filtered_total_sales = 0.0
+        filtered_invoice_count = 0
         
-        chart_labels = [entry['date'] for entry in chart_qs]
-        chart_values = [float(entry['daily']) if entry['daily'] else 0.0 for entry in chart_qs]
+        for inv in raw_invoice_qs:
+            inv_date = parse_db_date(inv['date'])
+            if not inv_date: continue
+                
+            if sales_filter_start_date and inv_date < sales_filter_start_date: continue
+            if sales_filter_end_date and inv_date > sales_filter_end_date: continue
+            
+            sid = inv['store_id']
+            amount = float(inv['total_amount'] or 0.0)
+            
+            if sid in sales_summary_by_store:
+                sales_summary_by_store[sid]['amount'] += amount
+                sales_summary_by_store[sid]['count'] += 1
+                
+                all_dates.add(inv_date)
+                if inv_date not in store_daily_data[sid]:
+                    store_daily_data[sid][inv_date] = 0.0
+                store_daily_data[sid][inv_date] += amount
+                
+                filtered_total_sales += amount
+                filtered_invoice_count += 1
+
+        sales_summary_list = list(sales_summary_by_store.values())
+        sales_summary_list.sort(key=lambda x: x['amount'], reverse=True)
+        
+        sorted_dates = sorted(list(all_dates))
+        chart_labels = [d.strftime('%d %b %Y') for d in sorted_dates]
+        
+        datasets = []
+        colors = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#06B6D4']
+        
+        doughnut_labels = []
+        doughnut_data = []
+        doughnut_colors = []
+
+        for idx, sid in enumerate(target_store_ids):
+            amount = sales_summary_by_store[sid]['amount']
+            s_name = sales_summary_by_store[sid]['name']
+            color = colors[idx % len(colors)]
+            
+            if sales_store_id or amount > 0:
+                s_data = [store_daily_data[sid].get(d, 0.0) for d in sorted_dates]
+                datasets.append({
+                    'label': s_name,
+                    'data': s_data,
+                    'borderColor': color,
+                    'backgroundColor': color,
+                    'tension': 0.3,
+                    'fill': False
+                })
+            
+            if amount > 0:
+                doughnut_labels.append(s_name)
+                doughnut_data.append(amount)
+                doughnut_colors.append(color)
+
+        sales_display_start = f"From {sales_filter_start_date}" if sales_filter_start_date else "All Time"
+        sales_display_end = f"to {sales_filter_end_date}" if sales_filter_end_date else ""
 
         tab_data.update({
-            'invoices': filtered_invoices,
-            'total_filtered_sales': total_filtered_sales, 
+            'sales_summary_list': sales_summary_list,
+            'total_filtered_sales': filtered_total_sales, 
+            'filtered_invoice_count': filtered_invoice_count,
             'chart_labels_json': json.dumps(chart_labels),
-            'chart_data_json': json.dumps(chart_values),
+            'chart_datasets_json': json.dumps(datasets),
+            'doughnut_labels_json': json.dumps(doughnut_labels),
+            'doughnut_data_json': json.dumps(doughnut_data),
+            'doughnut_colors_json': json.dumps(doughnut_colors),
+            
             'sales_display_start': sales_display_start,
             'sales_display_end': sales_display_end,
+            'sales_stores': sales_stores_list,
+            'sales_store_id': sales_store_id,
+            'selected_store_name': selected_store_name,
+            'sales_start_date_html': sales_start_date_html,
+            'sales_end_date_html': sales_end_date_html
         })
 
     elif current_tab == 'transactions':
-        # Use role-filtered order_qs
-        
-        # 1. Maps
-        # Fetch only relevant stores
         if is_admin:
             stores = StoreSet.objects.all().values('store_id', 'store_name')
         else:
-            # Only fetch stores allowed for this user
             stores = StoreSet.objects.filter(store_id__in=allowed_store_ids).values('store_id', 'store_name')
             
         store_map = {s['store_id']: s['store_name'] for s in stores}
         searchable_stores = [{'id': s['store_id'], 'name': s['store_name'] or f"ID: {s['store_id']}"} for s in stores]
         
-        # Customers map
         customers = CustomerInformation.objects.all().values('customer_id', 'first_name', 'last_name')
         customer_map = {c['customer_id']: f"{c['first_name'] or ''} {c['last_name'] or ''}".strip() for c in customers}
 
@@ -282,44 +363,33 @@ def dashboard_view(request):
             'transaction_end_date_html': transaction_end_date_str,
         })
 
-        # 2. Filter Logic
-        orders_filtered = order_qs # Already restricted by store permissions
-        
+        orders_filtered = order_qs 
         display_txt_start = "Recent Records"
         display_txt_end = ""
         
         if store_id_filter:
-            # Verify user has permission to search this specific store
             if is_admin or store_id_filter in allowed_store_ids:
                 orders_filtered = orders_filtered.filter(store_id=store_id_filter)
                 s_name = store_map.get(store_id_filter, f"ID: {store_id_filter}")
                 display_txt_start = f"Store: {s_name}"
                 tab_data['selected_store_name'] = s_name
-
-        # 3. Processing (Date + Names)
-        # We fetch list to process dates in python as before
+        
         orders_list = list(orders_filtered)
         processed = []
-        
         for o in orders_list:
             o.store_name = store_map.get(o.store_id, f"ID: {o.store_id}")
             o.customer_name = customer_map.get(o.customer_id, f"ID: {o.customer_id}")
-            
             o_date = parse_db_date(o.date)
             o.parsed_date = o_date
-            
             if transaction_filter_start_date and (not o_date or o_date < transaction_filter_start_date): continue
             if transaction_filter_end_date and (not o_date or o_date > transaction_filter_end_date): continue
-            
             processed.append(o)
             
-        # Sort & Limit
         processed.sort(key=lambda x: x.parsed_date or datetime.date.min, reverse=True)
-        
         limit = 50 if not (store_id_filter or transaction_filter_start_date or transaction_filter_end_date) else None
         final_orders = processed[:limit] if limit else processed
         
-        total_amt = sum(o.total_amount or 0.0 for o in processed)
+        total_amt = sum(float(o.total_amount) if o.total_amount else 0.0 for o in processed)
         
         if transaction_filter_start_date:
             display_txt_start += f" | From: {transaction_filter_start_date}"
@@ -333,15 +403,16 @@ def dashboard_view(request):
         })
 
     elif current_tab == 'credit':
-        # RESTRICT CREDIT TAB to Admin Only
-        if not is_admin:
-            tab_data['error_message'] = "Access Denied: Credit Ledger is restricted to Administrators."
+        if not (is_admin or is_merchant or is_store_keeper):
+            tab_data['error_message'] = "Access Denied."
         else:
-            # Full Credit Logic (Same as before)
             user_logins = UserLogin.objects.all().values('user_id', 'username')
             user_names = Users.objects.all().values('user_id', 'first_name', 'last_name')
+            store_sets = StoreSet.objects.all().values('store_id', 'store_name')
+
             username_map = {u['user_id']: u['username'] for u in user_logins}
             name_map = {u['user_id']: f"{u['first_name']} {u['last_name']}" for u in user_names}
+            store_map = {s['store_id']: s['store_name'] for s in store_sets}
             
             search_users = [{'id': k, 'name': v, 'username': username_map.get(k)} for k,v in name_map.items()]
             
@@ -353,20 +424,82 @@ def dashboard_view(request):
             })
             
             c_qs = TblUserCredit.objects.all()
-            if user_id_filter: c_qs = c_qs.filter(user_id=user_id_filter)
+
+            if is_merchant or is_store_keeper:
+                order_users = Order.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+                assigned_users = TblUserStores.objects.filter(store_id__in=allowed_store_ids).values_list('user_id', flat=True)
+                registered_users = UserLogin.objects.filter(store_id__in=allowed_store_ids, user_type=5).values_list('user_id', flat=True)
+                relevant_user_ids = set(order_users) | set(assigned_users) | set(registered_users)
+                if not relevant_user_ids:
+                     c_qs = c_qs.none()
+                else:
+                     c_qs = c_qs.filter(user_id__in=relevant_user_ids)
+
+            if user_id_filter: 
+                c_qs = c_qs.filter(user_id=user_id_filter)
             
             if credit_filter_start_date: c_qs = c_qs.filter(end_date__date__gte=credit_filter_start_date)
             if credit_filter_end_date: c_qs = c_qs.filter(end_date__date__lte=credit_filter_end_date)
             
             c_list = list(c_qs.order_by('-transaction_datetime')[:1000])
+
+            displayed_user_ids = [c.user_id for c in c_list]
+            ul_map = {}
+            if displayed_user_ids:
+                ul_data = UserLogin.objects.filter(user_id__in=displayed_user_ids).exclude(store_id__isnull=True).values('user_id', 'store_id')
+                for x in ul_data:
+                    ul_map[x['user_id']] = x['store_id']
+            tus_map = {}
+            if displayed_user_ids:
+                tus_data = TblUserStores.objects.filter(user_id__in=displayed_user_ids).values('user_id', 'store_id')
+                for x in tus_data:
+                    tus_map[x['user_id']] = x['store_id']
+            order_map = {}
+            if displayed_user_ids:
+                order_data = Order.objects.filter(customer_id__in=displayed_user_ids).values('customer_id', 'store_id')
+                for x in order_data:
+                    order_map[x['customer_id']] = x['store_id']
+
             for c in c_list:
                 c.display_name = name_map.get(c.user_id) or username_map.get(c.user_id) or c.user_id
+                store_id = ul_map.get(c.user_id)
+                if not store_id: store_id = tus_map.get(c.user_id)
+                if not store_id: store_id = order_map.get(c.user_id)
+                c.store_id = store_id or "N/A"
+                c.store_name = store_map.get(store_id, "N/A")
                 
             tab_data['credits'] = c_list
 
     elif current_tab == 'stock':
-        # Stock Tab - Role Filtered
-        stock_summary = store_prod_qs.values('product_id', 'variant_id').annotate(total_stock=Sum('quantity'))
+        stock_data = list(store_prod_qs.values('product_id', 'variant_id', 'quantity'))
+        
+        product_ids = set(str(item['product_id']).strip() for item in stock_data if item['product_id'])
+        variant_ids = set(str(item['variant_id']).strip() for item in stock_data if item['variant_id'])
+        
+        p_map = {p.product_id: p.product_name for p in ProductInformation.objects.filter(product_id__in=product_ids)}
+        v_map = {v.variant_id: v.variant_name for v in Variant.objects.filter(variant_id__in=variant_ids)}
+        
+        agg_map = {} 
+        for item in stock_data:
+            pid = str(item['product_id']).strip() if item['product_id'] else "N/A"
+            vid = str(item['variant_id']).strip() if item['variant_id'] else "N/A"
+            key = (pid, vid)
+            
+            if key not in agg_map:
+                agg_map[key] = 0
+            agg_map[key] += (item['quantity'] or 0)
+            
+        stock_summary = []
+        for (pid, vid), qty in agg_map.items():
+            stock_summary.append({
+                'product_id': pid,
+                'product_name': p_map.get(pid, f"Unknown Product ({pid})"),
+                'variant_id': vid,
+                'variant_name': v_map.get(vid, vid),
+                'total_stock': qty
+            })
+            
+        stock_summary.sort(key=lambda x: x['product_name'])
         tab_data['stock_summary'] = stock_summary
 
 
@@ -375,6 +508,8 @@ def dashboard_view(request):
         'current_tab': current_tab,
         'username': username,
         'is_admin': is_admin,
+        'is_merchant': is_merchant,
+        'is_store_keeper': is_store_keeper, 
         'filter_start_date': filter_start_str, 
         'filter_end_date': filter_end_str,    
         'filter_start_date_html': filter_start_date_html,
@@ -388,3 +523,85 @@ def dashboard_view(request):
     }
     
     return render(request, 'reports/dashboard.html', context)
+
+
+# --- NEW: STORES VIEW ---
+
+def stores_view(request):
+    perms = get_user_permissions(request)
+    if not perms: return redirect('login')
+    user_id, is_admin, is_merchant, is_store_keeper, allowed_store_ids, username = perms
+
+    search_query = request.GET.get('q', '').strip()
+    
+    # 1. Base Query
+    if is_admin:
+        stores = StoreSet.objects.all()
+    else:
+        stores = StoreSet.objects.filter(store_id__in=allowed_store_ids)
+        
+    # 2. Apply Search
+    if search_query:
+        stores = stores.filter(
+            Q(store_name__icontains=search_query) | 
+            Q(store_id__icontains=search_query) |
+            Q(store_address__icontains=search_query)
+        )
+        
+    context = {
+        'page_title': 'Store Management',
+        'username': username,
+        'is_admin': is_admin,
+        'is_merchant': is_merchant,
+        'is_store_keeper': is_store_keeper,
+        'stores': stores,
+        'search_query': search_query
+    }
+    return render(request, 'reports/stores.html', context)
+
+
+# --- NEW: CUSTOMERS VIEW ---
+
+def customers_view(request):
+    perms = get_user_permissions(request)
+    if not perms: return redirect('login')
+    user_id, is_admin, is_merchant, is_store_keeper, allowed_store_ids, username = perms
+
+    search_query = request.GET.get('q', '').strip()
+    
+    # 1. Base Query
+    if is_admin:
+        customers = CustomerInformation.objects.all()
+    else:
+        # Filter customers who have interacted with allowed stores
+        order_customers = Order.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+        # Also check explicit assignments if applicable
+        assigned_customers = TblUserStores.objects.filter(store_id__in=allowed_store_ids).values_list('user_id', flat=True)
+        
+        relevant_ids = set(order_customers) | set(assigned_customers)
+        customers = CustomerInformation.objects.filter(customer_id__in=relevant_ids)
+
+    # 2. Apply Search
+    if search_query:
+        customers = customers.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(customer_mobile__icontains=search_query) |
+            Q(customer_email__icontains=search_query) |
+            Q(customer_id__icontains=search_query)
+        )
+
+    # Limit results for performance if no search
+    if not search_query:
+        customers = customers[:50]
+
+    context = {
+        'page_title': 'Customer Management',
+        'username': username,
+        'is_admin': is_admin,
+        'is_merchant': is_merchant,
+        'is_store_keeper': is_store_keeper,
+        'customers': customers,
+        'search_query': search_query
+    }
+    return render(request, 'reports/customers.html', context)

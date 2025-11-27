@@ -15,7 +15,7 @@
     <style>
         /* Sidebar width constant */
         :root {
-            --sidebar-width: 240px; /* Increased slightly for better spacing */
+            --sidebar-width: 240px;
         }
 
         /* Fixed Sidebar Style */
@@ -25,7 +25,7 @@
             left: 0;
             height: 100vh;
             width: var(--sidebar-width);
-            overflow-y: auto; /* Scroll sidebar independently if menu is tall */
+            overflow-y: auto;
             z-index: 50;
         }
 
@@ -36,13 +36,6 @@
             min-height: 100vh;
         }
 
-        /* Custom active state for tabs */
-        .tab-trigger.active {
-            @apply bg-indigo-600 text-white shadow-md;
-        }
-        .tab-trigger.active svg {
-            @apply text-white;
-        }
         /* Styles for the Searchable Dropdown */
         .autocomplete-container { position: relative; }
         .autocomplete-dropdown {
@@ -75,11 +68,22 @@
                 <h1 class="text-2xl font-extrabold border-b border-gray-700 pb-3 mb-4">Vendy Reports</h1>
                 
                 <nav class="space-y-2">
-                    <a href="{% url 'dashboard' %}" class="flex items-center space-x-3 p-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition duration-150">
-                        <i data-lucide="layout-dashboard" class="w-5 h-5 text-white"></i>
+                    <a href="{% url 'dashboard' %}" class="flex items-center space-x-3 p-3 rounded-xl bg-indigo-600 shadow-md text-white transition duration-150">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                         <span class="font-semibold">Dashboard</span>
                     </a>
-                    <a href="/admin/" class="flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-700 transition duration-150">
+                    
+                    <a href="{% url 'stores' %}" class="flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-700 transition duration-150 text-gray-300 hover:text-white">
+                        <i data-lucide="store" class="w-5 h-5"></i>
+                        <span class="font-semibold">Stores</span>
+                    </a>
+
+                    <a href="{% url 'customers' %}" class="flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-700 transition duration-150 text-gray-300 hover:text-white">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                        <span class="font-semibold">Customers</span>
+                    </a>
+
+                    <a href="/admin/" class="flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-700 transition duration-150 text-gray-300 hover:text-white">
                         <i data-lucide="shield" class="w-5 h-5"></i>
                         <span class="font-semibold">Admin Panel</span>
                     </a>
@@ -91,7 +95,13 @@
                 <div class="mb-4 px-2">
                     <p class="text-xs text-gray-400 uppercase">Logged in as</p>
                     <p class="font-bold truncate">{{ username }}</p>
-                    <p class="text-xs text-gray-400">{% if is_admin %}Administrator{% else %}User{% endif %}</p>
+                    <p class="text-xs text-gray-400">
+                        {% if is_admin %}Administrator
+                        {% elif is_merchant %}Merchant
+                        {% elif is_store_keeper %}Store Keeper
+                        {% else %}User
+                        {% endif %}
+                    </p>
                 </div>
                 <a href="{% url 'logout' %}" class="flex items-center space-x-3 p-3 rounded-xl bg-red-600 hover:bg-red-700 transition duration-150 text-white">
                     <i data-lucide="log-out" class="w-5 h-5"></i>
@@ -107,8 +117,7 @@
                 <div class="text-sm text-gray-500">Date: {% now "M d, Y" %}</div>
             </header>
 
-            <!-- GLOBAL DATE FILTER FORM (NEW LOCATION) -->
-            <!-- This form ONLY affects the top summary cards -->
+            <!-- GLOBAL DATE FILTER FORM (Top Summary Cards) -->
             <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end p-4 bg-gray-50 rounded-xl border border-gray-200">
                 <input type="hidden" name="tab" value="{{ current_tab }}">
                 
@@ -126,7 +135,6 @@
                     <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md flex items-center space-x-2">
                         <i data-lucide="filter" class="w-4 h-4"></i> <span>Filter Summary</span>
                     </button>
-                    <!-- Link to reset global filter while staying on the current tab -->
                     <a href="{% url 'dashboard' %}?tab={{ current_tab }}" class="text-indigo-600 hover:text-indigo-800 px-4 py-2 rounded-lg border border-indigo-200 bg-white">Reset</a>
                 </div>
             </form>
@@ -164,10 +172,10 @@
                 </div>
 
                 <!-- Credit Card (Restricted Visibility) -->
-                <div class="bg-white p-6 rounded-2xl shadow-xl flex flex-col justify-between h-32 opacity-{% if is_admin %}100{% else %}50{% endif %}">
+                <div class="bg-white p-6 rounded-2xl shadow-xl flex flex-col justify-between h-32 opacity-{% if is_admin or is_merchant or is_store_keeper %}100{% else %}50{% endif %}">
                     <p class="text-sm text-gray-500 font-medium">Total Credit Balance ($)</p>
                     <p class="text-4xl font-extrabold text-indigo-700">
-                        {% if is_admin %}${{ total_credit_balance }}{% else %}---{% endif %}
+                        {% if is_admin or is_merchant or is_store_keeper %}${{ total_credit_balance }}{% else %}---{% endif %}
                     </p>
                     <div class="flex items-center justify-end"><i data-lucide="credit-card" class="w-6 h-6 text-indigo-400"></i></div>
                 </div>
@@ -176,43 +184,296 @@
             <!-- TABS & REPORT SECTION -->
             <div class="bg-white p-6 rounded-2xl shadow-xl">
                 
-                <!-- Tab Navigation (TabsList) -->
+                <!-- Tab Navigation (TabsList) - UPDATED FOR ACTIVE STATE -->
                 <div class="flex space-x-2 border-b border-gray-200 mb-6">
-                    <!-- Note: Tabs pass the GLOBAL date filter values along with the tab switch so the summary cards remain correct -->
-                    <a href="{% url 'dashboard' %}?tab=sales&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" class="tab-trigger p-3 font-semibold text-gray-600 rounded-t-lg flex items-center space-x-2 {% if current_tab == 'sales' %}active{% endif %}">
-                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-gray-500"></i> <span>Sales</span>
+                    
+                    <!-- SALES TAB -->
+                    <a href="{% url 'dashboard' %}?tab=sales&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
+                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       {% if current_tab == 'sales' %}
+                           bg-indigo-600 text-white shadow-md
+                       {% else %}
+                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                       {% endif %}">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 {% if current_tab == 'sales' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <span>Sales</span>
                     </a>
-                    <a href="{% url 'dashboard' %}?tab=stock&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" class="tab-trigger p-3 font-semibold text-gray-600 rounded-t-lg flex items-center space-x-2 {% if current_tab == 'stock' %}active{% endif %}">
-                        <i data-lucide="package" class="w-5 h-5 text-gray-500"></i> <span>Stock</span>
+
+                    <!-- STOCK TAB -->
+                    <a href="{% url 'dashboard' %}?tab=stock&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
+                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       {% if current_tab == 'stock' %}
+                           bg-indigo-600 text-white shadow-md
+                       {% else %}
+                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                       {% endif %}">
+                        <i data-lucide="package" class="w-5 h-5 {% if current_tab == 'stock' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <span>Stock</span>
                     </a>
-                    <a href="{% url 'dashboard' %}?tab=transactions&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" class="tab-trigger p-3 font-semibold text-gray-600 rounded-t-lg flex items-center space-x-2 {% if current_tab == 'transactions' %}active{% endif %}">
-                        <i data-lucide="activity" class="w-5 h-5 text-gray-500"></i> <span>Transactions</span>
+
+                    <!-- TRANSACTIONS TAB -->
+                    <a href="{% url 'dashboard' %}?tab=transactions&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
+                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       {% if current_tab == 'transactions' %}
+                           bg-indigo-600 text-white shadow-md
+                       {% else %}
+                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                       {% endif %}">
+                        <i data-lucide="activity" class="w-5 h-5 {% if current_tab == 'transactions' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <span>Transactions</span>
                     </a>
-                    <!-- Only Show Credit Tab for Admin -->
-                    {% if is_admin %}
-                    <a href="{% url 'dashboard' %}?tab=credit&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" class="tab-trigger p-3 font-semibold text-gray-600 rounded-t-lg flex items-center space-x-2 {% if current_tab == 'credit' %}active{% endif %}">
-                        <i data-lucide="credit-card" class="w-5 h-5 text-gray-500"></i> <span>Credit Ledger</span>
+
+                    <!-- CREDIT TAB -->
+                    {% if is_admin or is_merchant or is_store_keeper %}
+                    <a href="{% url 'dashboard' %}?tab=credit&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
+                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       {% if current_tab == 'credit' %}
+                           bg-indigo-600 text-white shadow-md
+                       {% else %}
+                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                       {% endif %}">
+                        <i data-lucide="credit-card" class="w-5 h-5 {% if current_tab == 'credit' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <span>Credit Ledger</span>
                     </a>
                     {% endif %}
                 </div>
 
                 <!-- TAB-SPECIFIC CONTENT AND FILTERS -->
                 
-                {% if current_tab == 'credit' %}
+                {% if current_tab == 'sales' %}
+                <!-- SALES REPORT TAB CONTENT -->
+                
+                <!-- NEW SALES FILTER FORM -->
+                <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                    <input type="hidden" name="tab" value="sales">
+                    <!-- Preserve Global Filters -->
+                    <input type="hidden" name="start_date" value="{{ filter_start_date_html }}">
+                    <input type="hidden" name="end_date" value="{{ filter_end_date_html }}">
+                    
+                    <!-- Store Selector -->
+                    <div class="flex flex-col md:col-span-2">
+                        <label for="sales_store_id" class="text-sm font-medium text-indigo-900 mb-1">Select Store:</label>
+                        <select id="sales_store_id" name="sales_store_id" class="p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            <option value="">All Stores (Summary)</option>
+                            {% for store in sales_stores %}
+                            <option value="{{ store.id }}" {% if sales_store_id == store.id %}selected{% endif %}>{{ store.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- From Date -->
+                    <div class="flex flex-col">
+                        <label for="sales_start_date" class="text-sm font-medium text-indigo-900 mb-1">Sales From:</label>
+                        <input type="date" id="sales_start_date" name="sales_start_date" value="{{ sales_start_date_html }}" class="p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <!-- To Date -->
+                    <div class="flex flex-col">
+                        <label for="sales_end_date" class="text-sm font-medium text-indigo-900 mb-1">Sales To:</label>
+                        <input type="date" id="sales_end_date" name="sales_end_date" value="{{ sales_end_date_html }}" class="p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    
+                    <div class="flex space-x-2 md:col-span-4 justify-end pt-2">
+                         <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md flex items-center space-x-2">
+                            <i data-lucide="bar-chart-2" class="w-4 h-4"></i> <span>Generate Sales Report</span>
+                        </button>
+                    </div>
+                </form>
+
+                <h2 class="text-2xl font-bold mb-4">
+                    Sales Report: <span class="text-indigo-600">{{ selected_store_name }}</span>
+                    <span class="text-gray-500 text-lg font-normal block mt-1">
+                        ({{ sales_display_start }} {{ sales_display_end }})
+                    </span>
+                </h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-blue-50 p-4 rounded-xl shadow border border-blue-200">
+                        <p class="text-sm font-medium text-blue-600">Total Filtered Sales ($)</p>
+                        <p class="text-3xl font-extrabold text-blue-800">${{ total_filtered_sales|default:"0.00"|floatformat:2 }}</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-xl shadow border border-blue-200">
+                        <p class="text-sm font-medium text-blue-600">Invoices Count</p>
+                        <p class="text-3xl font-extrabold text-blue-800">{{ filtered_invoice_count }}</p>
+                    </div>
+                </div>
+                
+                <!-- CHARTS ROW (Line & Doughnut) -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <!-- Line Chart (Trend) -->
+                    <div class="lg:col-span-2 bg-gray-50 p-6 border rounded-xl shadow-inner">
+                        <h3 class="text-xl font-semibold mb-3">Daily Sales Trend</h3>
+                        <div class="h-80 w-full p-2">
+                            <canvas id="salesChartCanvas"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Doughnut Chart (Market Share) -->
+                    <div class="bg-gray-50 p-6 border rounded-xl shadow-inner flex flex-col items-center">
+                        <h3 class="text-xl font-semibold mb-3">Revenue</h3>
+                        <div class="h-64 w-full p-2 flex justify-center">
+                            <canvas id="salesDoughnutCanvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Store Summary Table -->
+                <h3 class="text-xl font-semibold mb-3">Store Sales Summary</h3>
+                <div class="overflow-x-auto bg-white rounded-xl shadow border">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store Name</th>
+                               
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Sales</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice Count</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for summary in sales_summary_list %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ summary.name }}</td>
+                                
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">${{ summary.amount|floatformat:2 }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-blue-600">{{ summary.count }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">No sales data found for the selected criteria.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% elif current_tab == 'stock' %}
+                <!-- STOCK REPORT TAB CONTENT -->
+                <h2 class="text-2xl font-bold mb-4">Current Stock Summary</h2>
+                <p class="text-gray-500 mb-4">Showing current inventory levels for allowed stores.</p>
+                
+                <div class="overflow-x-auto bg-white rounded-xl shadow border">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variant</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Available Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for item in stock_summary %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ item.product_name }} 
+                                    <span class="text-xs text-gray-400 block">{{ item.product_id }}</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ item.variant_name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-red-600">{{ item.total_stock|default:0 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">No stock data found for allowed stores.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% elif current_tab == 'transactions' %}
+                    <!-- (Kept existing transaction tab code) -->
+                    <!-- TAB-SPECIFIC FILTER FORM -->
+                    <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <input type="hidden" name="tab" value="{{ current_tab }}">
+                        <input type="hidden" name="start_date" value="{{ filter_start_date_html }}">
+                        <input type="hidden" name="end_date" value="{{ filter_end_date_html }}">
+                        
+                        <div class="flex flex-col autocomplete-container md:col-span-2">
+                            <label for="store_id_search_input" class="text-sm font-medium text-gray-700 mb-1">Search Store:</label>
+                            <input type="text" id="store_id_search_input" 
+                                value="{% if selected_store_name %}{{ selected_store_name }}{% endif %}"
+                                placeholder="Search by Store Name or ID..."
+                                class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                            <input type="hidden" id="store_id_filter_hidden" name="store_id_filter" value="{{ store_id_filter }}">
+                            <div id="autocomplete-store-dropdown" class="autocomplete-dropdown hidden"></div>
+                        </div>
+                        
+                        <div class="flex flex-col">
+                            <label for="transaction_start_date" class="text-sm font-medium text-gray-700 mb-1">Date (From):</label>
+                            <input type="date" id="transaction_start_date" name="transaction_start_date" value="{{ transaction_start_date_html }}" class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label for="transaction_end_date" class="text-sm font-medium text-gray-700 mb-1">Date (To):</label>
+                            <input type="date" id="transaction_end_date" name="transaction_end_date" value="{{ transaction_end_date_html }}" class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        
+                        <div class="flex space-x-2 md:col-span-4 justify-end pt-2">
+                            <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-150 shadow-md flex items-center space-x-2">
+                                <i data-lucide="search" class="w-4 h-4"></i> <span>Apply Transaction Filter</span>
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <p class="text-sm text-gray-500 -mt-6 mb-4 mt-2">Transaction History Filtered by: **{{ transactions_display_start }} {% if transactions_display_end %}to {{ transactions_display_end }}{% endif %}**</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-blue-50 p-4 rounded-xl shadow border border-blue-200">
+                            <p class="text-sm font-medium text-blue-600">Total Filtered Order Amount</p>
+                            <p class="text-3xl font-extrabold text-blue-800">${{ total_filtered_orders_amount|default:"0.00"|floatformat:2 }}</p>
+                        </div>
+                    </div>
+
+                    <h2 class="text-2xl font-bold mb-4">Order/Transaction History</h2>
+                    
+                    <div class="overflow-x-auto bg-white rounded-xl shadow border">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th> 
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store Name</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {% for order in orders %}
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ order.order }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ order.date }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {{ order.customer_name|default:"N/A" }}
+                                        <span class="text-xs text-gray-400 block">{{ order.customer_id }}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-blue-600">${{ order.total_amount|floatformat:2 }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                            {{ order.status|default:"Complete" }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {{ order.store_name|default:"N/A" }}
+                                        <span class="text-xs text-gray-400 block">{{ order.store_id }}</span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No order data found in the selected range or for the selected store.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                {% elif current_tab == 'credit' %}
                     {% if error_message %}
                     <div class="p-4 bg-red-100 text-red-700 border border-red-400 rounded">
                         {{ error_message }}
                     </div>
                     {% else %}
                     <!-- CREDIT REPORT TAB CONTENT -->
-                    
-                    <!-- TAB-SPECIFIC FILTER FORM (For Customer ID and Credit Dates) -->
                     <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
                         <input type="hidden" name="tab" value="{{ current_tab }}">
                         <input type="hidden" name="start_date" value="{{ filter_start_date_html }}">
                         <input type="hidden" name="end_date" value="{{ filter_end_date_html }}">
                         
-                        <!-- Customer/User ID Filter with Searchable Dropdown (Col Span 2) -->
                         <div class="flex flex-col autocomplete-container md:col-span-2">
                             <label for="user_id_search_input" class="text-sm font-medium text-gray-700 mb-1">Search Customer/User:</label>
                             <input type="text" id="user_id_search_input" 
@@ -240,11 +501,8 @@
                         </div>
                     </form>
                     
-                    <!-- Display Credit Ledger Filter status -->
                     <p class="text-sm text-gray-500 -mt-6 mb-4 mt-2">Credit Ledger Filtered by: **{{ credit_filter_start_date }} {% if credit_filter_end_date %}{{ credit_filter_end_date }}{% endif %}**</p>
                     
-                    
-                    <!-- CREDIT LEDGER TABLE -->
                     <h2 class="text-2xl font-bold mb-4">User Credit Ledger</h2>
                     
                     <div class="overflow-x-auto bg-white rounded-xl shadow border">
@@ -252,6 +510,7 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User/Customer</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store (Customer Belongs To)</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Credit Period</th> 
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credit</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Debit</th>
@@ -266,7 +525,10 @@
                                         {{ credit.display_name }}
                                         <span class="text-xs text-gray-400 block">ID: {{ credit.user_id }}</span>
                                     </td>
-                                    <!-- Displaying Start Date and End Date -->
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ credit.store_name }}
+                                        <span class="text-xs text-gray-400 block">ID: {{ credit.store_id }}</span>
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <div class="font-medium text-gray-700">Start: {{ credit.start_date }}</div>
                                         <div class="text-xs text-red-500">End: {{ credit.end_date }}</div>
@@ -287,191 +549,12 @@
                                     </td> 
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No credit ledger data found in the selected range.</td></tr>
+                                <tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No credit ledger data found in the selected range.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
                     {% endif %}
-                
-                {% elif current_tab == 'sales' %}
-                <!-- SALES REPORT TAB CONTENT (Now uses dedicated sales_display variables) -->
-                <h2 class="text-2xl font-bold mb-4">Sales Report ({{ sales_display_start }} {% if sales_display_end %}{{ sales_display_end }}{% endif %})</h2>
-                
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div class="bg-blue-50 p-4 rounded-xl shadow border border-blue-200">
-                        <p class="text-sm font-medium text-blue-600">Total Filtered Sales</p>
-                        <p class="text-3xl font-extrabold text-blue-800">${{ total_filtered_sales|default:"0.00"|floatformat:2 }}</p>
-                    </div>
-                    <div class="bg-blue-50 p-4 rounded-xl shadow border border-blue-200">
-                        <p class="text-sm font-medium text-blue-600">Total Filtered Count</p>
-                        <p class="text-3xl font-extrabold text-blue-800">{{ invoices|length }}</p>
-                    </div>
-                </div>
-                
-                <!-- Chart (Sales Trend) -->
-                <div class="bg-gray-50 p-6 border rounded-xl shadow-inner mb-8">
-                    <h3 class="text-xl font-semibold mb-3">Daily Sales Trend</h3>
-                    <div class="h-96 w-full p-4">
-                        <canvas id="salesChartCanvas"></canvas>
-                    </div>
-                </div>
-
-                <!-- Recent Invoices Table -->
-                <h3 class="text-xl font-semibold mb-3">Recent Invoices (Max 100)</h3>
-                <div class="overflow-x-auto bg-white rounded-xl shadow border">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer ID</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            {% for invoice in invoices %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ invoice.invoice }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ invoice.date }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ invoice.customer_id }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">${{ invoice.total_amount|floatformat:2 }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                        {{ invoice.get_invoice_status_display|default:"Complete" }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No sales data found in the selected range.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-
-                {% elif current_tab == 'stock' %}
-                <!-- STOCK REPORT TAB CONTENT -->
-                <h2 class="text-2xl font-bold mb-4">Stock Summary (Current Inventory)</h2>
-                
-                <div class="overflow-x-auto bg-white rounded-xl shadow border">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variant ID</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            {% for item in stock_summary %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.product_id }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.variant_id }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-red-600">{{ item.total_stock|default:0 }}</td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">No stock data found.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-
-                {% elif current_tab == 'transactions' %}
-                <!-- TRANSACTIONS REPORT TAB CONTENT (FIXES APPLIED HERE) -->
-                
-                <!-- TAB-SPECIFIC FILTER FORM (For Store ID and Transaction Dates) -->
-                <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                    <input type="hidden" name="tab" value="{{ current_tab }}">
-                    <!-- Pass global dates along -->
-                    <input type="hidden" name="start_date" value="{{ filter_start_date_html }}">
-                    <input type="hidden" name="end_date" value="{{ filter_end_date_html }}">
-                    
-                    <!-- Store ID Filter with Searchable Dropdown (Col Span 2) -->
-                    <div class="flex flex-col autocomplete-container md:col-span-2">
-                        <label for="store_id_search_input" class="text-sm font-medium text-gray-700 mb-1">Search Store:</label>
-                        <!-- Ensure the input field value correctly reflects the selected filter, including the name -->
-                        <input type="text" id="store_id_search_input" 
-                               value="{% if selected_store_name %}{{ selected_store_name }}{% endif %}"
-                               placeholder="Search by Store Name or ID..."
-                               class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                        <!-- Hidden input to hold the actual ID for submission -->
-                        <input type="hidden" id="store_id_filter_hidden" name="store_id_filter" value="{{ store_id_filter }}">
-                        <div id="autocomplete-store-dropdown" class="autocomplete-dropdown hidden"></div>
-                    </div>
-                    
-                    <!-- Transaction Start Date Filter -->
-                    <div class="flex flex-col">
-                        <label for="transaction_start_date" class="text-sm font-medium text-gray-700 mb-1">Date (From):</label>
-                        <input type="date" id="transaction_start_date" name="transaction_start_date" value="{{ transaction_start_date_html }}" class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-
-                    <!-- Transaction End Date Filter -->
-                    <div class="flex flex-col">
-                        <label for="transaction_end_date" class="text-sm font-medium text-gray-700 mb-1">Date (To):</label>
-                        <input type="date" id="transaction_end_date" name="transaction_end_date" value="{{ transaction_end_date_html }}" class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                    
-                    <div class="flex space-x-2 md:col-span-4 justify-end pt-2">
-                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-150 shadow-md flex items-center space-x-2">
-                            <i data-lucide="search" class="w-4 h-4"></i> <span>Apply Transaction Filter</span>
-                        </button>
-                    </div>
-                </form>
-                
-                <!-- Display Transaction Filter status -->
-                <p class="text-sm text-gray-500 -mt-6 mb-4 mt-2">Transaction History Filtered by: **{{ transactions_display_start }} {% if transactions_display_end %}to {{ transactions_display_end }}{% endif %}**</p>
-
-                <!-- Summary Data -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                    <div class="bg-blue-50 p-4 rounded-xl shadow border border-blue-200">
-                        <p class="text-sm font-medium text-blue-600">Total Filtered Order Amount</p>
-                        <p class="text-3xl font-extrabold text-blue-800">${{ total_filtered_orders_amount|default:"0.00"|floatformat:2 }}</p>
-                    </div>
-                </div>
-
-                <h2 class="text-2xl font-bold mb-4">Order/Transaction History</h2>
-                
-                <div class="overflow-x-auto bg-white rounded-xl shadow border">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th> 
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
-                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store Name</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            {% for order in orders %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ order.order }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ order.date }}</td>
-                                <!-- Display Customer Name (with ID as secondary) -->
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {{ order.customer_name|default:"N/A" }}
-                                    <span class="text-xs text-gray-400 block">{{ order.customer_id }}</span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-blue-600">${{ order.total_amount|floatformat:2 }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                        {{ order.status|default:"Complete" }}
-                                    </span>
-                                </td>
-                                <!-- Display Store Name (with ID as secondary) -->
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {{ order.store_name|default:"N/A" }}
-                                    <span class="text-xs text-gray-400 block">{{ order.store_id }}</span>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No order data found in the selected range or for the selected store.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
                 
                 {% endif %}
 
@@ -488,65 +571,83 @@
     <script>
         // Check if we are on the sales tab before trying to render the chart
         if (document.getElementById('salesChartCanvas')) {
-            // FIX: Added |default:"[]" to ensure valid JSON array even if context variable is empty/None
-            const labels = JSON.parse('{{ chart_labels_json|safe|default:"[]" }}');
-            const dataPoints = JSON.parse('{{ chart_data_json|safe|default:"[]" }}');
+            // --- 1. LINE CHART (TREND) ---
+            const lineLabels = JSON.parse('{{ chart_labels_json|safe|default:"[]" }}');
+            const lineDatasets = '{{ chart_datasets_json|safe }}' ? JSON.parse('{{ chart_datasets_json|safe }}') : [{
+                label: 'Total Sales',
+                data: JSON.parse('{{ chart_data_json|safe|default:"[]" }}'),
+                borderColor: 'rgb(59, 130, 246)',
+                tension: 0.4,
+                fill: true
+            }];
             
-            const data = {
-                labels: labels,
-                datasets: [{
-                    label: 'Daily Sales Total',
-                    backgroundColor: 'rgba(59, 130, 246, 0.2)', // blue-500 with opacity
-                    borderColor: 'rgb(59, 130, 246)', // blue-500
-                    borderWidth: 3,
-                    tension: 0.4, 
-                    data: dataPoints,
-                    fill: true,
-                }]
-            };
-
-            const config = {
+            const lineConfig = {
                 type: 'line', 
-                data: data,
+                data: {
+                    labels: lineLabels,
+                    datasets: lineDatasets
+                },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false, 
                     scales: {
                         y: {
                             beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Total Amount ($)',
-                                color: '#6b7280'
-                            },
-                            grid: {
-                                color: '#f3f4f6'
-                            }
+                            title: { display: true, text: 'Amount ($)', color: '#6b7280' },
+                            grid: { color: '#f3f4f6' }
                         },
                         x: {
-                            grid: {
-                                display: false
-                            }
+                            grid: { display: false }
                         }
                     },
                     plugins: {
-                        legend: {
-                            display: false
-                        },
+                        legend: { display: true, position: 'bottom' },
                         tooltip: {
                             backgroundColor: '#333',
                             titleColor: '#fff',
                             bodyColor: '#fff',
                             padding: 10,
-                            cornerRadius: 5
+                            cornerRadius: 5,
+                            mode: 'index',
+                            intersect: false
                         }
-                    }
+                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false }
                 }
             };
 
-            // Render the chart on window load
-            const ctx = document.getElementById('salesChartCanvas').getContext('2d');
-            new Chart(ctx, config);
+            const lineCtx = document.getElementById('salesChartCanvas').getContext('2d');
+            new Chart(lineCtx, lineConfig);
+
+            // --- 2. DOUGHNUT CHART (MARKET SHARE) ---
+            const doughnutLabels = JSON.parse('{{ doughnut_labels_json|safe|default:"[]" }}');
+            const doughnutData = JSON.parse('{{ doughnut_data_json|safe|default:"[]" }}');
+            const doughnutColors = JSON.parse('{{ doughnut_colors_json|safe|default:"[]" }}');
+
+            // Only render if data exists
+            if (doughnutData.length > 0 && document.getElementById('salesDoughnutCanvas')) {
+                const doughnutConfig = {
+                    type: 'doughnut',
+                    data: {
+                        labels: doughnutLabels,
+                        datasets: [{
+                            data: doughnutData,
+                            backgroundColor: doughnutColors,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            title: { display: false }
+                        }
+                    }
+                };
+                const doughnutCtx = document.getElementById('salesDoughnutCanvas').getContext('2d');
+                new Chart(doughnutCtx, doughnutConfig);
+            }
         }
 
     </script>
@@ -554,20 +655,17 @@
     <!-- JavaScript for Searchable User Dropdown (Credit Tab) -->
     {% if current_tab == 'credit' %}
     <script>
-        // Store the dropdown data globally, or just define it here if only used here
         const users = JSON.parse('{{ searchable_users_json|safe|default:"[]" }}');
         const searchInput = document.getElementById('user_id_search_input');
         const hiddenInput = document.getElementById('user_id_filter_hidden');
         const dropdown = document.getElementById('autocomplete-dropdown');
         
-        // Handle input events for filtering
         searchInput.addEventListener('input', function() {
             const query = searchInput.value.toLowerCase();
             dropdown.innerHTML = '';
             
             if (query.length < 2) {
                 dropdown.classList.add('hidden');
-                // Crucial fix: Clear the hidden input if the user starts typing anything new
                 hiddenInput.value = '';
                 return;
             }
@@ -576,7 +674,7 @@
                 (user.name && user.name.toLowerCase().includes(query)) ||
                 (user.username && user.username.toLowerCase().includes(query)) ||
                 user.id.toLowerCase().includes(query)
-            ).slice(0, 10); // Limit results to 10
+            ).slice(0, 10); 
 
             if (matches.length > 0) {
                 matches.forEach(user => {
@@ -587,7 +685,6 @@
                     item.innerHTML = `<strong>${nameDisplay}</strong> <span class="text-xs text-gray-500">(${user.id})</span>`;
                     
                     item.addEventListener('click', function() {
-                        // Set the display text and the actual value
                         searchInput.value = `${nameDisplay} (${user.id})`;
                         hiddenInput.value = user.id;
                         dropdown.classList.add('hidden');
@@ -600,40 +697,31 @@
             }
         });
         
-        // Hide dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!dropdown.contains(e.target) && e.target !== searchInput) {
                 dropdown.classList.add('hidden');
             }
         });
 
-        // Clear the hidden input if the user clears the search input
         searchInput.addEventListener('change', function() {
-            // If the visible input is empty OR if the visible input no longer contains the hidden ID, clear the hidden ID.
             if (searchInput.value === '' || !searchInput.value.includes(`(${hiddenInput.value})`)) {
                 hiddenInput.value = '';
             }
         });
-        
     </script>
     {% endif %}
 
     <!-- JavaScript for Searchable Store Dropdown (Transaction Tab) -->
     {% if current_tab == 'transactions' %}
     <script>
-        /* eslint-disable no-unused-vars, no-undef */
-        // Store the dropdown data globally
         const stores = JSON.parse('{{ searchable_stores_json|safe|default:"[]" }}');
         const searchInput = document.getElementById('store_id_search_input');
         const hiddenInput = document.getElementById('store_id_filter_hidden');
         const dropdown = document.getElementById('autocomplete-store-dropdown');
         
-        // Handle input events for filtering
         searchInput.addEventListener('input', function() {
             const query = searchInput.value.toLowerCase();
             dropdown.innerHTML = '';
-            
-            // **New Fix**: If user starts typing, invalidate the previously selected ID (unless they select again)
             hiddenInput.value = '';
             
             if (query.length < 2) {
@@ -644,21 +732,16 @@
             const matches = stores.filter(store => 
                 (store.name && store.name.toLowerCase().includes(query)) ||
                 store.id.toLowerCase().includes(query)
-            ).slice(0, 10); // Limit results to 10
+            ).slice(0, 10);
 
             if (matches.length > 0) {
                 matches.forEach(store => {
                     const item = document.createElement('div');
                     item.classList.add('autocomplete-item');
-                    
                     const nameDisplay = store.name || 'N/A';
-                    // The innerHTML structure looks correct to show both Name and ID: Name (ID)
                     item.innerHTML = `<strong>${nameDisplay}</strong> <span class="text-xs text-gray-500">(${store.id})</span>`;
-                    
                     item.addEventListener('click', function() {
-                        // This sets the visible input to ONLY the Name (as requested)
                         searchInput.value = `${nameDisplay}`;
-                        // This sets the hidden value to ONLY the ID for filtering
                         hiddenInput.value = store.id;
                         dropdown.classList.add('hidden');
                     });
@@ -670,17 +753,11 @@
             }
         });
         
-        // Hide dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!dropdown.contains(e.target) && e.target !== searchInput) {
                 dropdown.classList.add('hidden');
             }
         });
-
-        // Note: We removed the 'change' listener logic that checked for ID inclusion, 
-        // because the visible input no longer contains the ID. 
-        // The 'input' listener above now handles clearing the hidden value on modification.
-        
     </script>
     {% endif %}
 </body>
