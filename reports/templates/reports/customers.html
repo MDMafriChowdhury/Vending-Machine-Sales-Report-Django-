@@ -101,7 +101,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Transacted</th>
                                 <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             </tr>
                         </thead>
@@ -131,9 +131,10 @@
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">
                                     {{ customer.city|default:"" }} {{ customer.state|default:"" }}
+                                    <div class="text-xs text-gray-400">{{ customer.company|default:"-" }}</div>
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    {{ customer.company|default:"-" }}
+                                <td class="px-6 py-4 text-sm text-right font-bold text-indigo-600">
+                                    ${{ customer.total_transitioned|floatformat:2 }}
                                 </td>
                                 <td class="px-6 py-4 text-center">
                                     {% if customer.status == 1 %}

@@ -184,55 +184,55 @@
             <!-- TABS & REPORT SECTION -->
             <div class="bg-white p-6 rounded-2xl shadow-xl">
                 
-                <!-- Tab Navigation (TabsList) - UPDATED FOR ACTIVE STATE -->
-                <div class="flex space-x-2 border-b border-gray-200 mb-6">
+                <!-- Tab Navigation (TabsList) - BIGGER & BOLDER -->
+                <div class="flex space-x-4 border-b-2 border-gray-200 mb-8">
                     
                     <!-- SALES TAB -->
                     <a href="{% url 'dashboard' %}?tab=sales&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
-                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       class="flex-1 justify-center px-6 py-4 text-lg font-bold rounded-t-xl flex items-center space-x-3 transition-all duration-200
                        {% if current_tab == 'sales' %}
-                           bg-indigo-600 text-white shadow-md
+                           bg-indigo-600 text-white shadow-lg transform -translate-y-1
                        {% else %}
-                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                           bg-gray-50 text-gray-500 hover:bg-gray-200 hover:text-gray-800
                        {% endif %}">
-                        <i data-lucide="bar-chart-3" class="w-5 h-5 {% if current_tab == 'sales' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <i data-lucide="bar-chart-3" class="w-6 h-6"></i> 
                         <span>Sales</span>
                     </a>
 
                     <!-- STOCK TAB -->
                     <a href="{% url 'dashboard' %}?tab=stock&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
-                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       class="flex-1 justify-center px-6 py-4 text-lg font-bold rounded-t-xl flex items-center space-x-3 transition-all duration-200
                        {% if current_tab == 'stock' %}
-                           bg-indigo-600 text-white shadow-md
+                           bg-indigo-600 text-white shadow-lg transform -translate-y-1
                        {% else %}
-                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                           bg-gray-50 text-gray-500 hover:bg-gray-200 hover:text-gray-800
                        {% endif %}">
-                        <i data-lucide="package" class="w-5 h-5 {% if current_tab == 'stock' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <i data-lucide="package" class="w-6 h-6"></i> 
                         <span>Stock</span>
                     </a>
 
                     <!-- TRANSACTIONS TAB -->
                     <a href="{% url 'dashboard' %}?tab=transactions&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
-                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       class="flex-1 justify-center px-6 py-4 text-lg font-bold rounded-t-xl flex items-center space-x-3 transition-all duration-200
                        {% if current_tab == 'transactions' %}
-                           bg-indigo-600 text-white shadow-md
+                           bg-indigo-600 text-white shadow-lg transform -translate-y-1
                        {% else %}
-                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                           bg-gray-50 text-gray-500 hover:bg-gray-200 hover:text-gray-800
                        {% endif %}">
-                        <i data-lucide="activity" class="w-5 h-5 {% if current_tab == 'transactions' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <i data-lucide="activity" class="w-6 h-6"></i> 
                         <span>Transactions</span>
                     </a>
 
                     <!-- CREDIT TAB -->
                     {% if is_admin or is_merchant or is_store_keeper %}
                     <a href="{% url 'dashboard' %}?tab=credit&start_date={{ filter_start_date_html|urlencode }}&end_date={{ filter_end_date_html|urlencode }}" 
-                       class="p-3 font-semibold rounded-t-lg flex items-center space-x-2 transition-colors duration-200
+                       class="flex-1 justify-center px-6 py-4 text-lg font-bold rounded-t-xl flex items-center space-x-3 transition-all duration-200
                        {% if current_tab == 'credit' %}
-                           bg-indigo-600 text-white shadow-md
+                           bg-indigo-600 text-white shadow-lg transform -translate-y-1
                        {% else %}
-                           text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                           bg-gray-50 text-gray-500 hover:bg-gray-200 hover:text-gray-800
                        {% endif %}">
-                        <i data-lucide="credit-card" class="w-5 h-5 {% if current_tab == 'credit' %}text-white{% else %}text-gray-500{% endif %}"></i> 
+                        <i data-lucide="credit-card" class="w-6 h-6"></i> 
                         <span>Credit Ledger</span>
                     </a>
                     {% endif %}

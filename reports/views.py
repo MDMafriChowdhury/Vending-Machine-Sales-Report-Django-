@@ -8,7 +8,8 @@ from .models import (
     Invoice, Order, ProductPurchase,
     StoreProduct, TblUserCredit, StoreSet, InvoiceDetails, OrderDetails,
     UserLogin, Users, CustomerInformation, StoreMerchant, TblCreditTransection,
-    TblUserStores, ProductInformation, Variant
+    TblUserStores, ProductInformation, Variant, Received, Quotation, CustomerLedger,
+    ChequeManger
 )
 
 # --- AUTHENTICATION VIEWS ---
@@ -426,10 +427,28 @@ def dashboard_view(request):
             c_qs = TblUserCredit.objects.all()
 
             if is_merchant or is_store_keeper:
+                # Identify Customers linked to allowed stores via multiple tables
+                
+                # 1. Orders
                 order_users = Order.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+                
+                # 2. Assigned Users (TblUserStores)
                 assigned_users = TblUserStores.objects.filter(store_id__in=allowed_store_ids).values_list('user_id', flat=True)
-                registered_users = UserLogin.objects.filter(store_id__in=allowed_store_ids, user_type=5).values_list('user_id', flat=True)
-                relevant_user_ids = set(order_users) | set(assigned_users) | set(registered_users)
+                
+                # 3. Received (Includes Bill Acceptor/Payments)
+                received_users = Received.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+                
+                # 4. Invoices
+                invoice_users = Invoice.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+                
+                # 5. Quotations
+                quotation_users = Quotation.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+                
+                # 6. Cheque Transactions
+                cheque_users = ChequeManger.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+
+                relevant_user_ids = set(order_users) | set(assigned_users) | set(received_users) | set(invoice_users) | set(quotation_users) | set(cheque_users)
+                
                 if not relevant_user_ids:
                      c_qs = c_qs.none()
                 else:
@@ -573,13 +592,62 @@ def customers_view(request):
     if is_admin:
         customers = CustomerInformation.objects.all()
     else:
-        # Filter customers who have interacted with allowed stores
-        order_customers = Order.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
-        # Also check explicit assignments if applicable
-        assigned_customers = TblUserStores.objects.filter(store_id__in=allowed_store_ids).values_list('user_id', flat=True)
+        # Identify Customers linked to allowed stores via multiple tables
         
-        relevant_ids = set(order_customers) | set(assigned_customers)
-        customers = CustomerInformation.objects.filter(customer_id__in=relevant_ids)
+        # A. Direct Links via Store ID
+        # 1. Orders (uses customer_id)
+        store_orders = Order.objects.filter(store_id__in=allowed_store_ids)
+        order_users = store_orders.values_list('customer_id', flat=True)
+        
+        # 2. Assigned Users (TblUserStores uses user_id)
+        assigned_users = TblUserStores.objects.filter(store_id__in=allowed_store_ids).values_list('user_id', flat=True)
+        
+        # 3. Received (Includes Bill Acceptor/Payments)
+        store_received = Received.objects.filter(store_id__in=allowed_store_ids)
+        received_users = store_received.values_list('customer_id', flat=True)
+        
+        # 4. Invoices
+        store_invoices = Invoice.objects.filter(store_id__in=allowed_store_ids)
+        invoice_users = store_invoices.values_list('customer_id', flat=True)
+        
+        # 5. Quotations
+        store_quotations = Quotation.objects.filter(store_id__in=allowed_store_ids)
+        quotation_users = store_quotations.values_list('customer_id', flat=True)
+        
+        # 6. Cheque Transactions
+        cheque_users = ChequeManger.objects.filter(store_id__in=allowed_store_ids).values_list('customer_id', flat=True)
+
+        # B. Indirect Links via CustomerLedger (The "Credit" search)
+        # CustomerLedger doesn't have store_id, so we link via document numbers from tables above.
+        
+        # Extract Document Numbers
+        inv_nums = store_invoices.values_list('invoice', flat=True)
+        ord_nums = store_orders.values_list('order', flat=True) # 'order' field in Order model is the order number string
+        rec_nums = store_received.values_list('transection_id', flat=True) 
+        quot_nums = store_quotations.values_list('quotation', flat=True)
+
+        # Find customers in Ledger referencing these documents
+        # We use sets to avoid huge OR queries, searching each type
+        ledger_users = set()
+        
+        if inv_nums:
+            ledger_users.update(CustomerLedger.objects.filter(invoice_no__in=inv_nums).values_list('customer_id', flat=True))
+        if ord_nums:
+            ledger_users.update(CustomerLedger.objects.filter(order_no__in=ord_nums).values_list('customer_id', flat=True))
+        if rec_nums:
+            # receipt_no in Ledger usually matches transection_id from Received
+            ledger_users.update(CustomerLedger.objects.filter(receipt_no__in=rec_nums).values_list('customer_id', flat=True))
+        if quot_nums:
+            ledger_users.update(CustomerLedger.objects.filter(quotation_no__in=quot_nums).values_list('customer_id', flat=True))
+
+        # Combine all user/customer IDs found
+        relevant_ids = set(order_users) | set(assigned_users) | set(received_users) | set(invoice_users) | set(quotation_users) | set(cheque_users) | ledger_users
+        
+        # IMPORTANT: Filter CustomerInformation by checking BOTH customer_id AND user_id
+        # Some tables (like TblUserStores) use user_id, others (Order) use customer_id.
+        customers = CustomerInformation.objects.filter(
+            Q(customer_id__in=relevant_ids) | Q(user_id__in=relevant_ids)
+        )
 
     # 2. Apply Search
     if search_query:
@@ -592,8 +660,28 @@ def customers_view(request):
         )
 
     # Limit results for performance if no search
-    if not search_query:
-        customers = customers[:50]
+    # 3. Calculate "Total Transitioned Amount" for each customer
+    # We fetch them as a list to attach custom attributes
+    customers_list = list(customers[:50]) 
+
+    for c in customers_list:
+        # Build filters based on role
+        order_filter = Q(customer_id=c.customer_id)
+        received_filter = Q(customer_id=c.customer_id)
+        
+        # If NOT admin, restrict calculation to allowed stores only
+        # If Admin, we do NOT apply store filter, so we see ALL transactions
+        if not is_admin:
+            order_filter &= Q(store_id__in=allowed_store_ids)
+            received_filter &= Q(store_id__in=allowed_store_ids)
+
+        # Total Orders Amount (Sales Activity)
+        o_total = Order.objects.filter(order_filter).aggregate(t=Sum('total_amount'))['t'] or 0.0
+        
+        # Total Received Amount (Bill Acceptor / Payments)
+        r_total = Received.objects.filter(received_filter).aggregate(t=Sum('amount'))['t'] or 0.0
+        
+        c.total_transitioned = o_total + r_total
 
     context = {
         'page_title': 'Customer Management',
@@ -601,7 +689,7 @@ def customers_view(request):
         'is_admin': is_admin,
         'is_merchant': is_merchant,
         'is_store_keeper': is_store_keeper,
-        'customers': customers,
+        'customers': customers_list, # Pass the list with attached attributes
         'search_query': search_query
     }
     return render(request, 'reports/customers.html', context)
