@@ -1,0 +1,81 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendy Login</title>
+    
+    <!-- Suppress Tailwind CDN Warning -->
+    <script>
+        (function() {
+            var origWarn = console.warn;
+            console.warn = function(msg) {
+                if (msg && typeof msg === 'string' && msg.includes('cdn.tailwindcss.com')) return;
+                origWarn.apply(console, arguments);
+            };
+        })();
+    </script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body class="bg-gray-900 h-screen flex items-center justify-center">
+
+    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all hover:scale-105 duration-300">
+        <div class="text-center mb-8">
+            <div class="bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <i data-lucide="lock" class="w-8 h-8 text-white"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800">Welcome Back</h1>
+            <p class="text-gray-500 mt-2">Sign in to Vendy Reports</p>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded" role="alert">
+            <p class="font-bold">Error</p>
+            <p>{{ error }}</p>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{% url 'login' %}">
+            {% csrf_token %}
+            <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="username">Username</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                    </span>
+                    <input class="pl-10 shadow appearance-none border rounded-xl w-full py-3 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" id="username" name="username" type="text" placeholder="Enter your username" required>
+                </div>
+            </div>
+            
+            <div class="mb-8">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Password</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <i data-lucide="key" class="w-5 h-5 text-gray-400"></i>
+                    </span>
+                    <input class="pl-10 shadow appearance-none border rounded-xl w-full py-3 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" id="password" name="password" type="password" placeholder="******************" required>
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-between">
+                <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl w-full focus:outline-none focus:shadow-outline transition duration-200 shadow-lg flex justify-center items-center gap-2" type="submit">
+                    <span>Sign In</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </form>
+        
+        <p class="text-center text-gray-400 text-xs mt-8">
+            &copy; 2025 Vendy. All rights reserved.
+        </p>
+    </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
