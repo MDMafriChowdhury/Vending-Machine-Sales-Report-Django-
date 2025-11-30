@@ -5,7 +5,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # This line sends all requests starting with '/reports/' to the reports app's urls.py
-    path('reports/', include('reports.urls')), 
-    
+    # Change 'reports/' to '' (empty string)
+    path('', include('reports.urls')), 
 ]

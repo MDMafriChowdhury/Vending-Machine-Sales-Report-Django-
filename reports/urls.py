@@ -4,10 +4,13 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Maps http://127.0.0.1:8000/reports/ to the dashboard_view function
-    path('', views.dashboard_view, name='dashboard'),
-    path('login/', views.login_view, name='login'),
-    path('logout/', views.logout_view, name='logout'),
+    # Changed from '' to 'dashboard/' per your request
+    path('dashboard/', views.dashboard_view, name='dashboard'),
+    
+    # These remain the same, but now they won't have the /reports/ prefix
     path('stores/', views.stores_view, name='stores'),
     path('customers/', views.customers_view, name='customers'),
+    
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
 ]

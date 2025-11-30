@@ -4,78 +4,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vendy Login</title>
+    <title>Sign in - Vendy Reports</title>
     
-    <!-- Suppress Tailwind CDN Warning -->
-    <script>
-        (function() {
-            var origWarn = console.warn;
-            console.warn = function(msg) {
-                if (msg && typeof msg === 'string' && msg.includes('cdn.tailwindcss.com')) return;
-                origWarn.apply(console, arguments);
-            };
-        })();
-    </script>
-
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons CDN -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-</head>
-<body class="bg-gray-900 h-screen flex items-center justify-center">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all hover:scale-105 duration-300">
-        <div class="text-center mb-8">
-            <div class="bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <i data-lucide="lock" class="w-8 h-8 text-white"></i>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        
+        <div class="p-8 text-center bg-white">
+            <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 mb-4">
+                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
             </div>
-            <h1 class="text-3xl font-bold text-gray-800">Welcome Back</h1>
-            <p class="text-gray-500 mt-2">Sign in to Vendy Reports</p>
+            <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Welcome back</h2>
+            <p class="text-sm text-gray-500 mt-2">Please enter your details to sign in.</p>
         </div>
 
         {% if error %}
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded" role="alert">
-            <p class="font-bold">Error</p>
-            <p>{{ error }}</p>
+        <div class="px-8">
+            <div class="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg p-3 flex items-start gap-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+                <div>
+                    <span class="font-medium">Authentication failed</span>
+                    <p class="text-red-500 mt-1">{{ error }}</p>
+                </div>
+            </div>
         </div>
         {% endif %}
 
-        <form method="POST" action="{% url 'login' %}">
-            {% csrf_token %}
-            <div class="mb-6">
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="username">Username</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-                        <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
-                    </span>
-                    <input class="pl-10 shadow appearance-none border rounded-xl w-full py-3 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" id="username" name="username" type="text" placeholder="Enter your username" required>
+        <div class="p-8 pt-6">
+            <form method="POST" action="{% url 'login' %}">
+                {% csrf_token %}
+                
+                <div class="mb-5">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="username">Username</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="mail" class="h-5 w-5 text-gray-400"></i>
+                        </div>
+                        <input 
+                            class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-200" 
+                            id="username" 
+                            name="username" 
+                            type="text" 
+                            placeholder="Enter your username" 
+                            required>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="mb-8">
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Password</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-                        <i data-lucide="key" class="w-5 h-5 text-gray-400"></i>
-                    </span>
-                    <input class="pl-10 shadow appearance-none border rounded-xl w-full py-3 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" id="password" name="password" type="password" placeholder="******************" required>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="password">Password</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="lock" class="h-5 w-5 text-gray-400"></i>
+                        </div>
+                        <input 
+                            class="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-200" 
+                            id="password" 
+                            name="password" 
+                            type="password" 
+                            placeholder="••••••••" 
+                            required>
+                        <button type="button" onclick="togglePassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none">
+                            <i id="eye-icon" data-lucide="eye" class="h-5 w-5"></i>
+                        </button>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="flex items-center justify-between">
-                <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl w-full focus:outline-none focus:shadow-outline transition duration-200 shadow-lg flex justify-center items-center gap-2" type="submit">
-                    <span>Sign In</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
+                        <label for="remember-me" class="ml-2 block text-sm text-gray-600 cursor-pointer">Remember me</label>
+                    </div>
+                    <div class="text-sm">
+                        <a href="#" class="font-medium text-indigo-600 hover:text-indigo-500">Forgot password?</a>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200">
+                    Sign in
                 </button>
-            </div>
-        </form>
-        
-        <p class="text-center text-gray-400 text-xs mt-8">
-            &copy; 2025 Vendy. All rights reserved.
-        </p>
+            </form>
+        </div>
+
+        <div class="bg-gray-50 px-8 py-4 border-t border-gray-100 text-center">
+            <p class="text-xs text-gray-500">
+                &copy; 2025 Vendy Reports. Secure System.
+            </p>
+        </div>
     </div>
 
     <script>
+        // Initialize Icons
         lucide.createIcons();
+
+        // Password Toggle Logic
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eye-icon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                // Change icon to eye-off (requires re-initializing or SVG swap, simpler to just swap class if using library, 
+                // but for CDN lucide re-render is tricky. 
+                // Simple approach: re-render the specific SVG or just toggle opacity)
+                eyeIcon.setAttribute('stroke', '#4f46e5'); // Highlight when visible
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.setAttribute('stroke', 'currentColor'); // Reset color
+            }
+        }
     </script>
 </body>
 </html>
